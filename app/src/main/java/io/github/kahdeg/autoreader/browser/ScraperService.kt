@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.URI
+import io.github.kahdeg.autoreader.util.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -100,7 +101,7 @@ class ScraperService @Inject constructor(
                 }
             }
             
-            android.util.Log.d("ScraperService", "Page $pageCount: found ${links.size} links, added $newChaptersAdded new chapters (total: ${allChapters.size})")
+            AppLog.d("ScraperService", "Page $pageCount: found ${links.size} links, added $newChaptersAdded new chapters (total: ${allChapters.size})")
             
             // Handle navigation based on list type
             when (blueprint.listType) {
@@ -110,7 +111,7 @@ class ScraperService @Inject constructor(
                 ListType.PAGINATED -> {
                     // Stop if this page had no new chapters (duplicate detection via seenUrls)
                     if (newChaptersAdded == 0) {
-                        android.util.Log.d("ScraperService", "No new chapters on page $pageCount, stopping")
+                        AppLog.d("ScraperService", "No new chapters on page $pageCount, stopping")
                         keepScraping = false
                         break
                     }
@@ -124,7 +125,7 @@ class ScraperService @Inject constructor(
                         ghostBrowser.waitForDomChange(5000)
                         delay(500) // Extra delay for content to settle
                     } else {
-                        android.util.Log.d("ScraperService", "Next button not found or not clickable, stopping")
+                        AppLog.d("ScraperService", "Next button not found or not clickable, stopping")
                         keepScraping = false
                     }
                 }
@@ -168,8 +169,8 @@ class ScraperService @Inject constructor(
         chapter: Chapter,
         book: Book
     ): Result<String> = withContext(Dispatchers.IO) {
-        android.util.Log.d("ScraperService", "fetchChapterContent: id=${chapter.id}, index=${chapter.index}, title=${chapter.title}")
-        android.util.Log.d("ScraperService", "  Chapter URL: ${chapter.rawUrl}")
+        AppLog.d("ScraperService", "fetchChapterContent: id=${chapter.id}, index=${chapter.index}, title=${chapter.title}")
+        AppLog.d("ScraperService", "  Chapter URL: ${chapter.rawUrl}")
         
         try {
             // Update status
@@ -179,14 +180,14 @@ class ScraperService @Inject constructor(
             val blueprint = siteBlueprintDao.getByDomain(book.domain)
                 ?: return@withContext Result.failure(Exception("No blueprint for domain ${book.domain}"))
             
-            android.util.Log.d("ScraperService", "  Content selector: ${blueprint.contentSelector}")
+            AppLog.d("ScraperService", "  Content selector: ${blueprint.contentSelector}")
             
             // Load chapter page
             ghostBrowser.loadUrl(chapter.rawUrl).getOrThrow()
             
             // Extract content
             val content = ghostBrowser.extractText(blueprint.contentSelector)
-            android.util.Log.d("ScraperService", "  Extracted content length: ${content.length}")
+            AppLog.d("ScraperService", "  Extracted content length: ${content.length}")
             
             if (content.isBlank()) {
                 chapterDao.updateStatus(chapter.id, ChapterStatus.FETCH_FAILED)
@@ -203,12 +204,12 @@ class ScraperService @Inject constructor(
             }
             
             // Save raw content
-            android.util.Log.d("ScraperService", "  Saving content to chapter id=${chapter.id}")
+            AppLog.d("ScraperService", "  Saving content to chapter id=${chapter.id}")
             chapterDao.updateRaw(chapter.id, content, book.sourceLanguage)
             
             Result.success(content)
         } catch (e: Exception) {
-            android.util.Log.e("ScraperService", "  Fetch failed: ${e.message}")
+            AppLog.e("ScraperService", "  Fetch failed: ${e.message}")
             chapterDao.updateStatus(chapter.id, ChapterStatus.FETCH_FAILED)
             chapterDao.updateError(chapter.id, e.message ?: "Unknown error")
             Result.failure(e)

@@ -41,6 +41,9 @@ interface ChapterDao {
     @Query("SELECT COUNT(*) FROM chapters WHERE bookUrl = :bookUrl AND status = :status")
     suspend fun countByStatus(bookUrl: String, status: ChapterStatus): Int
     
+    @Query("UPDATE chapters SET status = 'PENDING' WHERE bookUrl = :bookUrl AND status = 'TRANSLATING'")
+    suspend fun resetStuckTranslating(bookUrl: String): Int
+    
     @Query("SELECT COUNT(*) FROM chapters c JOIN books b ON c.bookUrl = b.bookUrl WHERE b.domain = :domain AND c.status = 'USER_FLAGGED'")
     suspend fun getFlaggedCountForDomain(domain: String): Int
     

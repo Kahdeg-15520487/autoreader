@@ -3,6 +3,7 @@ package io.github.kahdeg.autoreader.llm
 import io.github.kahdeg.autoreader.data.db.entity.ProcessingMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import io.github.kahdeg.autoreader.util.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,22 +33,24 @@ Output the improved text:
         """.trimIndent()
         
         private fun translationPrompt(sourceLanguage: String, targetLanguage: String) = """
-You are a professional fiction translator and editor. Your task is to translate the provided text.
+You are a professional fiction translator and editor. Your task is to translate the provided text from $sourceLanguage to $targetLanguage.
+
+IMPORTANT: You MUST output the translation in $targetLanguage. Do NOT output in English or any other language.
 
 Source Language: $sourceLanguage
 Target Language: $targetLanguage
 
 Instructions:
 1. Translate the text accurately while maintaining the author's style and tone
-2. Preserve the flow and readability - it should read naturally in the target language
+2. Preserve the flow and readability - it should read naturally in $targetLanguage
 3. Fix gender consistency issues (he/she errors common in MTL)
 4. Keep character names consistent (you may provide romanization in parentheses on first mention)
 5. Preserve all paragraph breaks
 6. Do NOT summarize or shorten the text
 7. Keep all narrative details, descriptions, and dialogue
-8. Output ONLY the translated text, no explanations or notes
+8. Output ONLY the translated text in $targetLanguage, no explanations or notes
 
-Translate the following text:
+Translate the following text to $targetLanguage:
         """.trimIndent()
     }
     
@@ -61,10 +64,10 @@ Translate the following text:
         sourceLanguage: String,
         targetLanguage: String
     ): Flow<StreamingChunk> = flow {
-        android.util.Log.d("EditorAgent", "processContentStreaming: mode=$mode, source=$sourceLanguage, target=$targetLanguage, textLength=${rawText.length}")
+        AppLog.d("EditorAgent", "processContentStreaming: mode=$mode, source=$sourceLanguage, target=$targetLanguage, textLength=${rawText.length}")
         
         if (rawText.isBlank()) {
-            android.util.Log.e("EditorAgent", "Empty content provided")
+            AppLog.e("EditorAgent", "Empty content provided")
             emit(StreamingChunk.Error("Empty content"))
             return@flow
         }
@@ -101,10 +104,10 @@ Translate the following text:
         sourceLanguage: String,
         targetLanguage: String
     ): Result<String> {
-        android.util.Log.d("EditorAgent", "processContent: mode=$mode, source=$sourceLanguage, target=$targetLanguage, textLength=${rawText.length}")
+        AppLog.d("EditorAgent", "processContent: mode=$mode, source=$sourceLanguage, target=$targetLanguage, textLength=${rawText.length}")
         
         if (rawText.isBlank()) {
-            android.util.Log.e("EditorAgent", "Empty content provided")
+            AppLog.e("EditorAgent", "Empty content provided")
             return Result.failure(Exception("Empty content"))
         }
         
@@ -124,18 +127,18 @@ Translate the following text:
             jsonMode = false
         )
         
-        android.util.Log.d("EditorAgent", "Sending full chapter (${rawText.length} chars) to LLM")
+        AppLog.d("EditorAgent", "Sending full chapter (${rawText.length} chars) to LLM")
         
         val result = llmProvider.complete(request)
         if (result.isFailure) {
-            android.util.Log.e("EditorAgent", "Processing failed: ${result.exceptionOrNull()?.message}")
+            AppLog.e("EditorAgent", "Processing failed: ${result.exceptionOrNull()?.message}")
             return Result.failure(result.exceptionOrNull() ?: Exception("Processing failed"))
         }
         
         val response = result.getOrThrow()
-        android.util.Log.d("EditorAgent", "Processing complete: ${response.tokensUsed} tokens, output length=${response.content.length}")
+        AppLog.d("EditorAgent", "Processing complete: ${response.tokensUsed} tokens, output length=${response.content.length}")
         response.reasoningContent?.let { 
-            android.util.Log.d("EditorAgent", "Reasoning: $it") 
+            AppLog.d("EditorAgent", "Reasoning: $it") 
         }
         
         return Result.success(response.content)

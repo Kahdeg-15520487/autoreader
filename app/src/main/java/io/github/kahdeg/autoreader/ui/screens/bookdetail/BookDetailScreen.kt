@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -68,6 +69,7 @@ fun BookDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val lazyListState = rememberLazyListState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     
@@ -76,6 +78,14 @@ fun BookDetailScreen(
         uiState.error?.let { error ->
             snackbarHostState.showSnackbar(error)
             viewModel.clearError()
+        }
+    }
+    
+    // Scroll to currently reading chapter when book loads
+    LaunchedEffect(uiState.book, uiState.chapters.size) {
+        val book = uiState.book ?: return@LaunchedEffect
+        if (uiState.chapters.isNotEmpty() && book.currentChapterIndex > 0) {
+            lazyListState.scrollToItem(book.currentChapterIndex)
         }
     }
     
@@ -327,7 +337,8 @@ fun BookDetailScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    state = lazyListState
                 ) {
                     itemsIndexed(uiState.chapters) { index, chapter ->
                         ChapterItem(

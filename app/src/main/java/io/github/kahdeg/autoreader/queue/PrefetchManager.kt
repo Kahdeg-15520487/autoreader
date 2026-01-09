@@ -9,6 +9,7 @@ import io.github.kahdeg.autoreader.data.db.entity.Book
 import io.github.kahdeg.autoreader.data.db.entity.Chapter
 import io.github.kahdeg.autoreader.data.db.entity.ChapterStatus
 import io.github.kahdeg.autoreader.llm.EditorAgent
+import io.github.kahdeg.autoreader.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -80,6 +81,12 @@ class PrefetchManager @Inject constructor(
         _status.value = _status.value.copy(isRunning = true, currentBook = bookUrl)
         
         try {
+            // Reset any chapters stuck in TRANSLATING (app was terminated mid-translation)
+            val resetCount = chapterDao.resetStuckTranslating(bookUrl)
+            if (resetCount > 0) {
+                AppLog.d("PrefetchManager", "Reset $resetCount stuck TRANSLATING chapters to PENDING")
+            }
+            
             val book = bookDao.getByUrl(bookUrl) ?: return
             
             while (true) {
@@ -144,7 +151,7 @@ class PrefetchManager @Inject constructor(
             // Step 2: Process with LLM (translate or cleanup)
             if (updatedChapter.processedText.isNullOrBlank() && !updatedChapter.rawText.isNullOrBlank()) {
                 val chapterInfo = "chapter ${chapter.index}: ${chapter.title}"
-                android.util.Log.d("PrefetchManager", "Starting translation for $chapterInfo")
+                AppLog.d("PrefetchManager", "Starting translation for $chapterInfo")
                 chapterDao.updateStatus(chapter.id, ChapterStatus.TRANSLATING)
                 
                 // Use NonCancellable to prevent interruption during translation
@@ -158,28 +165,28 @@ class PrefetchManager @Inject constructor(
                         )
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         // Log but don't propagate - we want to complete the operation
-                        android.util.Log.w("PrefetchManager", "Translation interrupted for $chapterInfo: ${e.message}")
+                        AppLog.w("PrefetchManager", "Translation interrupted for $chapterInfo: ${e.message}")
                         Result.failure<String>(Exception("Translation interrupted"))
                     } catch (e: Exception) {
-                        android.util.Log.e("PrefetchManager", "Translation exception for $chapterInfo: ${e.message}")
+                        AppLog.e("PrefetchManager", "Translation exception for $chapterInfo: ${e.message}")
                         Result.failure<String>(e)
                     }
                 }
                 
-                android.util.Log.d("PrefetchManager", "Translation result for $chapterInfo: isSuccess=${processResult.isSuccess}")
+                AppLog.d("PrefetchManager", "Translation result for $chapterInfo: isSuccess=${processResult.isSuccess}")
                 
                 if (processResult.isSuccess) {
                     val text = processResult.getOrThrow()
-                    android.util.Log.d("PrefetchManager", "Saving ${text.length} chars for $chapterInfo")
+                    AppLog.d("PrefetchManager", "Saving ${text.length} chars for $chapterInfo")
                     chapterDao.updateProcessed(
                         id = chapter.id,
                         processedText = text,
                         processedLanguage = book.targetLanguage
                     )
-                    android.util.Log.d("PrefetchManager", "✓ $chapterInfo READY")
+                    AppLog.d("PrefetchManager", "✓ $chapterInfo READY")
                     chapterDao.updateStatus(chapter.id, ChapterStatus.READY)
                 } else {
-                    android.util.Log.e("PrefetchManager", "✗ $chapterInfo FAILED: ${processResult.exceptionOrNull()?.message}")
+                    AppLog.e("PrefetchManager", "✗ $chapterInfo FAILED: ${processResult.exceptionOrNull()?.message}")
                     chapterDao.updateStatus(chapter.id, ChapterStatus.FETCH_FAILED)
                     chapterDao.updateError(chapter.id, processResult.exceptionOrNull()?.message ?: "Processing failed")
                 }

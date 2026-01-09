@@ -12,6 +12,7 @@ import io.github.kahdeg.autoreader.data.db.entity.Chapter
 import io.github.kahdeg.autoreader.data.db.entity.ChapterStatus
 import io.github.kahdeg.autoreader.queue.PrefetchManager
 import io.github.kahdeg.autoreader.ui.navigation.Route
+import io.github.kahdeg.autoreader.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,9 +74,16 @@ class ReaderViewModel @Inject constructor(
     
     private fun loadBook() {
         viewModelScope.launch {
-            android.util.Log.d("ReaderVM", "Loading book: $bookUrl")
+            AppLog.d("ReaderVM", "Loading book: $bookUrl")
             val book = bookDao.getByUrl(bookUrl)
-            android.util.Log.d("ReaderVM", "Book loaded: ${book?.title}")
+            AppLog.d("ReaderVM", "Book loaded: ${book?.title}")
+            
+            // Save reading progress on initial load (fixes chapter selection from list)
+            val initialChapter = route.chapterIndex
+            if (book != null && book.currentChapterIndex != initialChapter) {
+                bookDao.updateReadingProgress(bookUrl, initialChapter)
+            }
+            
             _uiState.update { 
                 it.copy(
                     book = book,
@@ -89,7 +97,7 @@ class ReaderViewModel @Inject constructor(
     private fun observeChapters() {
         viewModelScope.launch {
             chapterDao.getChaptersForBook(bookUrl).collect { chapters ->
-                android.util.Log.d("ReaderVM", "Chapters updated: ${chapters.size} chapters")
+                AppLog.d("ReaderVM", "Chapters updated: ${chapters.size} chapters")
                 _uiState.update { it.copy(chapters = chapters) }
                 
                 // Check if we should start streaming for current chapter
@@ -123,7 +131,7 @@ class ReaderViewModel @Inject constructor(
             chapter.status != ChapterStatus.FETCH_FAILED
             
         if (needsTranslation) {
-            android.util.Log.d("ReaderVM", "Triggering translation for chapter ${chapter.index}")
+            AppLog.d("ReaderVM", "Triggering translation for chapter ${chapter.index}")
             // Delegate to PrefetchManager which runs in independent scope
             viewModelScope.launch {
                 prefetchManager.processChapterNow(chapter.id)
@@ -138,11 +146,11 @@ class ReaderViewModel @Inject constructor(
         val chapter = _uiState.value.currentChapter ?: return
         
         if (chapter.rawText.isNullOrBlank()) {
-            android.util.Log.e("ReaderVM", "No raw text to translate")
+            AppLog.e("ReaderVM", "No raw text to translate")
             return
         }
         
-        android.util.Log.d("ReaderVM", "Retranslating chapter ${chapter.index}")
+        AppLog.d("ReaderVM", "Retranslating chapter ${chapter.index}")
         viewModelScope.launch {
             // Clear processed text and reset status to trigger reprocessing
             chapterDao.updateProcessed(chapter.id, "", "")
@@ -196,6 +204,24 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             chapterDao.updateStatus(chapter.id, ChapterStatus.PENDING)
             chapterDao.updateError(chapter.id, "")
+            prefetchManager.processChapterNow(chapter.id)
+        }
+    }
+    
+    /**
+     * Clear all content (raw + processed) and retranslate from scratch.
+     * This combines the refresh and retranslate operations.
+     */
+    fun clearAndRetranslate() {
+        val chapter = _uiState.value.currentChapter ?: return
+        AppLog.d("ReaderVM", "Clearing and retranslating chapter ${chapter.index}")
+        viewModelScope.launch {
+            // Clear both raw and processed content
+            chapterDao.updateRaw(chapter.id, "", "")
+            chapterDao.updateProcessed(chapter.id, "", "")
+            chapterDao.updateStatus(chapter.id, ChapterStatus.PENDING)
+            chapterDao.updateError(chapter.id, "")
+            // Trigger reprocessing (will fetch fresh content)
             prefetchManager.processChapterNow(chapter.id)
         }
     }

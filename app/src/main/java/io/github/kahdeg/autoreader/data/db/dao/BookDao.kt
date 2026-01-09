@@ -18,6 +18,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE bookUrl = :bookUrl")
     suspend fun getByUrl(bookUrl: String): Book?
     
+    @Query("SELECT * FROM books WHERE bookUrl = :bookUrl")
+    fun getByUrlFlow(bookUrl: String): Flow<Book?>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(book: Book)
     

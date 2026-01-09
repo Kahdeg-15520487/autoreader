@@ -13,6 +13,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jsoup.Jsoup
+import io.github.kahdeg.autoreader.util.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -121,14 +122,14 @@ class GhostBrowser @Inject constructor(
             }
             
             if (exists) {
-                android.util.Log.d("GhostBrowser", "waitForElement: '$cssSelector' found after ${System.currentTimeMillis() - startTime}ms")
+                AppLog.d("GhostBrowser", "waitForElement: '$cssSelector' found after ${System.currentTimeMillis() - startTime}ms")
                 return@withContext true
             }
             
             kotlinx.coroutines.delay(200)
         }
         
-        android.util.Log.d("GhostBrowser", "waitForElement: '$cssSelector' timeout after ${timeoutMs}ms")
+        AppLog.d("GhostBrowser", "waitForElement: '$cssSelector' timeout after ${timeoutMs}ms")
         false
     }
     
@@ -146,7 +147,7 @@ class GhostBrowser @Inject constructor(
                     val jsonArray = org.json.JSONArray("[$result]")
                     jsonArray.getString(0)
                 } catch (e: Exception) {
-                    android.util.Log.e("GhostBrowser", "Failed to parse HTML JSON: ${e.message}")
+                    AppLog.e("GhostBrowser", "Failed to parse HTML JSON: ${e.message}")
                     // Fallback to manual unescaping if JSON parsing fails
                     result
                         ?.removeSurrounding("\"")
@@ -186,18 +187,18 @@ class GhostBrowser @Inject constructor(
         
         withContext(Dispatchers.IO) {
             try {
-                android.util.Log.d("GhostBrowser", "extractLinks: baseUrl='$baseUrl', html length=${html.length}")
+                AppLog.d("GhostBrowser", "extractLinks: baseUrl='$baseUrl', html length=${html.length}")
                 
                 // Parse with base URL for proper abs:href resolution
                 var chapterListRaw = html.indexOf("chapter-list")
-                android.util.Log.d("GhostBrowser", "extractLinks: chapterListRaw=$chapterListRaw")
+                AppLog.d("GhostBrowser", "extractLinks: chapterListRaw=$chapterListRaw")
                 val doc = Jsoup.parse(html, baseUrl)
                 val elements = doc.select(cssSelector)
 
                 var elements1 = doc.select("#chapter-list")
-                android.util.Log.d("GhostBrowser", "extractLinks: selector='#chapter-list' found ${elements1.size} elements")
+                AppLog.d("GhostBrowser", "extractLinks: selector='#chapter-list' found ${elements1.size} elements")
                 
-                android.util.Log.d("GhostBrowser", "extractLinks: selector='$cssSelector' found ${elements.size} elements")
+                AppLog.d("GhostBrowser", "extractLinks: selector='$cssSelector' found ${elements.size} elements")
                 
                 // Debug: if no elements found, check what's in the document
                 if (elements.isEmpty()) {
@@ -206,16 +207,16 @@ class GhostBrowser @Inject constructor(
                     if (selectorParts.size > 1) {
                         val parentSelector = selectorParts.dropLast(1).joinToString(" ")
                         val parentElements = doc.select(parentSelector)
-                        android.util.Log.d("GhostBrowser", "  Parent selector '$parentSelector' found ${parentElements.size} elements")
+                        AppLog.d("GhostBrowser", "  Parent selector '$parentSelector' found ${parentElements.size} elements")
                         if (parentElements.isNotEmpty()) {
                             val firstParent = parentElements.first()
-                            android.util.Log.d("GhostBrowser", "  First parent HTML (first 500 chars): ${firstParent?.html()?.take(500)}")
+                            AppLog.d("GhostBrowser", "  First parent HTML (first 500 chars): ${firstParent?.html()?.take(500)}")
                         }
                     }
                     // Log a snippet of the body to see what's there
                     val body = doc.body()
-                    android.util.Log.d("GhostBrowser", "  Body children count: ${body?.children()?.size ?: 0}")
-                    android.util.Log.d("GhostBrowser", "  Body HTML (first 1000 chars): ${body?.html()?.take(1000)}")
+                    AppLog.d("GhostBrowser", "  Body children count: ${body?.children()?.size ?: 0}")
+                    AppLog.d("GhostBrowser", "  Body HTML (first 1000 chars): ${body?.html()?.take(1000)}")
                 }
                 
                 elements.mapNotNull { element ->
@@ -229,17 +230,17 @@ class GhostBrowser @Inject constructor(
                         href != "#"
                     
                     if (isValidUrl) {
-                        android.util.Log.d("GhostBrowser", "  Link: '$text' -> $href")
+                        AppLog.d("GhostBrowser", "  Link: '$text' -> $href")
                         text to href
                     } else {
                         if (href.isNotBlank()) {
-                            android.util.Log.d("GhostBrowser", "  Skipping invalid link: '$text' -> $href")
+                            AppLog.d("GhostBrowser", "  Skipping invalid link: '$text' -> $href")
                         }
                         null
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("GhostBrowser", "extractLinks error: ${e.message}")
+                AppLog.e("GhostBrowser", "extractLinks error: ${e.message}")
                 emptyList()
             }
         }

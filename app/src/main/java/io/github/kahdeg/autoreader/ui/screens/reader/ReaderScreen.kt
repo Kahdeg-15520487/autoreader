@@ -1,6 +1,7 @@
 package io.github.kahdeg.autoreader.ui.screens.reader
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -101,18 +103,18 @@ fun ReaderScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    // Refresh button
+                    // Clear and Retranslate button
                     IconButton(
                         onClick = { 
-                            viewModel.refreshCurrentChapter()
+                            viewModel.clearAndRetranslate()
                             scope.launch {
-                                snackbarHostState.showSnackbar("Refreshing chapter...")
+                                snackbarHostState.showSnackbar("Clearing and retranslating chapter...")
                             }
                         }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh chapter"
+                            contentDescription = "Clear and retranslate chapter"
                         )
                     }
                     // Flag button
@@ -176,6 +178,22 @@ fun ReaderScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                scope.launch {
+                                    // If at bottom (or close to it), scroll to top
+                                    // Otherwise, scroll to bottom
+                                    val isAtBottom = scrollState.value >= scrollState.maxValue - 100
+                                    if (isAtBottom) {
+                                        scrollState.animateScrollTo(0)
+                                    } else {
+                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                    }
+                                }
+                            }
+                        )
+                    }
                     .verticalScroll(scrollState)
             ) {
                 // Chapter content

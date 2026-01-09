@@ -3,6 +3,7 @@ package io.github.kahdeg.autoreader.llm
 import io.github.kahdeg.autoreader.data.db.entity.ListType
 import io.github.kahdeg.autoreader.data.db.entity.SiteBlueprint
 import io.github.kahdeg.autoreader.data.db.entity.WaitStrategy
+import io.github.kahdeg.autoreader.util.AppLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -132,14 +133,14 @@ Return ONLY valid JSON, no markdown or explanation.
         return try {
             val response = llmProvider.complete(request).getOrThrow()
             response.reasoningContent?.let { 
-                android.util.Log.d("ScoutAgent", "analyzeHtml reasoning: $it") 
+                AppLog.d("ScoutAgent", "analyzeHtml reasoning: $it") 
             }
-            android.util.Log.d("ScoutAgent", "analyzeHtml response (${response.tokensUsed} tokens): ${response.content}")
+            AppLog.d("ScoutAgent", "analyzeHtml response (${response.tokensUsed} tokens): ${response.content}")
             val blueprint = parseBlueprintResponse(response.content, domain)
-            android.util.Log.d("ScoutAgent", "Parsed blueprint: listType=${blueprint.listType}, chapterSelector=${blueprint.chapterCssSelector}, contentSelector=${blueprint.contentSelector}")
+            AppLog.d("ScoutAgent", "Parsed blueprint: listType=${blueprint.listType}, chapterSelector=${blueprint.chapterCssSelector}, contentSelector=${blueprint.contentSelector}")
             Result.success(blueprint)
         } catch (e: Exception) {
-            android.util.Log.e("ScoutAgent", "analyzeHtml failed: ${e.message}")
+            AppLog.e("ScoutAgent", "analyzeHtml failed: ${e.message}")
             Result.failure(Exception("Scout Agent failed: ${e.message}"))
         }
     }
@@ -211,9 +212,9 @@ Return ONLY valid JSON, no markdown or explanation.
         return try {
             val response = llmProvider.complete(request).getOrThrow()
             response.reasoningContent?.let { 
-                android.util.Log.d("ScoutAgent", "analyzeChapterHtml reasoning: $it") 
+                AppLog.d("ScoutAgent", "analyzeChapterHtml reasoning: $it") 
             }
-            android.util.Log.d("ScoutAgent", "analyzeChapterHtml response (${response.tokensUsed} tokens): ${response.content}")
+            AppLog.d("ScoutAgent", "analyzeChapterHtml response (${response.tokensUsed} tokens): ${response.content}")
             
             val jsonStr = response.content
                 .trim()
@@ -222,9 +223,9 @@ Return ONLY valid JSON, no markdown or explanation.
                 .removeSuffix("```")
                 .trim()
             
-            android.util.Log.d("ScoutAgent", "Parsed JSON string: $jsonStr")
+            AppLog.d("ScoutAgent", "Parsed JSON string: $jsonStr")
             val parsed = json.decodeFromString<ContentSelectorDto>(jsonStr)
-            android.util.Log.d("ScoutAgent", "Extracted content selector: ${parsed.contentSelector}")
+            AppLog.d("ScoutAgent", "Extracted content selector: ${parsed.contentSelector}")
             
             if (parsed.contentSelector.isNotBlank()) {
                 Result.success(parsed.contentSelector)
@@ -232,7 +233,7 @@ Return ONLY valid JSON, no markdown or explanation.
                 Result.failure(Exception("Empty content selector"))
             }
         } catch (e: Exception) {
-            android.util.Log.e("ScoutAgent", "Failed to analyze chapter HTML: ${e.message}", e)
+            AppLog.e("ScoutAgent", "Failed to analyze chapter HTML: ${e.message}", e)
             Result.failure(Exception("Failed to analyze chapter content: ${e.message}"))
         }
     }

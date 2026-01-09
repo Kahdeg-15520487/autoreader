@@ -15,6 +15,7 @@ import io.github.kahdeg.autoreader.data.db.entity.Chapter
 import io.github.kahdeg.autoreader.llm.LlmProvider
 import io.github.kahdeg.autoreader.llm.ScoutAgent
 import io.github.kahdeg.autoreader.ui.navigation.Route
+import io.github.kahdeg.autoreader.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,29 +51,30 @@ class BookDetailViewModel @Inject constructor(
     val uiState: StateFlow<BookDetailUiState> = _uiState.asStateFlow()
     
     init {
-        loadBook()
+        observeBook()
         observeChapters()
     }
     
-    private fun loadBook() {
+    private fun observeBook() {
         viewModelScope.launch {
-            val book = bookDao.getByUrl(bookUrl)
-            val blueprint = book?.domain?.let { siteBlueprintDao.getByDomain(it) }
-            val blueprintInfo = blueprint?.let {
-                """
-                |Chapter selector: ${it.chapterCssSelector}
-                |Content selector: ${it.contentSelector}
-                |List type: ${it.listType}
-                |Next button: ${it.nextButtonSelector ?: ""}
-                """.trimMargin()
-            }
-            _uiState.update { 
-                it.copy(
-                    book = book, 
-                    isLoading = false,
-                    hasBlueprint = blueprint != null,
-                    blueprintInfo = blueprintInfo
-                ) 
+            bookDao.getByUrlFlow(bookUrl).collect { book ->
+                val blueprint = book?.domain?.let { siteBlueprintDao.getByDomain(it) }
+                val blueprintInfo = blueprint?.let {
+                    """
+                    |Chapter selector: ${it.chapterCssSelector}
+                    |Content selector: ${it.contentSelector}
+                    |List type: ${it.listType}
+                    |Next button: ${it.nextButtonSelector ?: ""}
+                    """.trimMargin()
+                }
+                _uiState.update { 
+                    it.copy(
+                        book = book, 
+                        isLoading = false,
+                        hasBlueprint = blueprint != null,
+                        blueprintInfo = blueprintInfo
+                    ) 
+                }
             }
         }
     }
@@ -145,17 +147,16 @@ class BookDetailViewModel @Inject constructor(
                             chapterLinks.first().second
                         }
                         
-                        android.util.Log.d("BookDetailVM", "Visiting chapter to get content selector: $firstChapterUrl")
+                        AppLog.d("BookDetailVM", "Visiting chapter to get content selector: $firstChapterUrl")
                         ghostBrowser.loadUrl(firstChapterUrl).getOrThrow()
                         val chapterHtml = ghostBrowser.extractHtml()
                         
                         val contentSelectorResult = scoutAgent.analyzeChapterHtml(chapterHtml)
                         if (contentSelectorResult.isSuccess) {
                             val newSelector = contentSelectorResult.getOrThrow()
-                            android.util.Log.d("BookDetailVM", "Got content selector: $newSelector")
+                            AppLog.d("BookDetailVM", "Got content selector: $newSelector")
                             blueprint = blueprint.copy(contentSelector = newSelector)
                             siteBlueprintDao.upsert(blueprint)
-                            loadBook() // Refresh UI to show new selector
                         }
                         
                         // Navigate back to book page
@@ -281,9 +282,6 @@ class BookDetailViewModel @Inject constructor(
                 )
                 
                 siteBlueprintDao.upsert(blueprint)
-                
-                // Reload blueprint info
-                loadBook()
                 
                 _uiState.update { 
                     it.copy(error = "Blueprint saved! Press Fetch Chapters to test.")

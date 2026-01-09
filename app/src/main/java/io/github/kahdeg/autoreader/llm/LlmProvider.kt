@@ -13,6 +13,7 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import io.github.kahdeg.autoreader.util.AppLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -90,12 +91,12 @@ class LlmProvider @Inject constructor(
             }
             
             val responseText = response.bodyAsText()
-            android.util.Log.d("LlmProvider", "Raw response: ${responseText.take(500)}")
+            AppLog.d("LlmProvider", "Raw response: ${responseText.take(500)}")
             
             val chatResponse: ChatCompletionResponse = json.decodeFromString(responseText)
             
             if (chatResponse.choices.isNullOrEmpty()) {
-                android.util.Log.e("LlmProvider", "No choices in response: $responseText")
+                AppLog.e("LlmProvider", "No choices in response: $responseText")
                 return Result.failure(Exception("API error: ${chatResponse.error?.message ?: "No choices returned"}"))
             }
             
@@ -104,9 +105,9 @@ class LlmProvider @Inject constructor(
             val reasoning = message?.reasoning_content
             
             if (reasoning != null) {
-                android.util.Log.d("LlmProvider", "Reasoning: $reasoning")
+                AppLog.d("LlmProvider", "Reasoning: $reasoning")
             }
-            android.util.Log.d("LlmProvider", "Response: $content")
+            AppLog.d("LlmProvider", "Response: $content")
             
             Result.success(LlmResponse(
                 content = content,
@@ -114,7 +115,7 @@ class LlmProvider @Inject constructor(
                 tokensUsed = chatResponse.usage?.total_tokens ?: 0
             ))
         } catch (e: Exception) {
-            android.util.Log.e("LlmProvider", "LLM request failed: ${e.message}")
+            AppLog.e("LlmProvider", "LLM request failed: ${e.message}")
             Result.failure(Exception("LLM request failed: ${e.message}"))
         }
     }
@@ -142,7 +143,7 @@ class LlmProvider @Inject constructor(
                 stream = true
             )
             
-            android.util.Log.d("LlmProvider", "Starting streaming request...")
+            AppLog.d("LlmProvider", "Starting streaming request...")
             
             val response = httpClient.post("$baseUrl/chat/completions") {
                 contentType(ContentType.Application.Json)
@@ -181,14 +182,14 @@ class LlmProvider @Inject constructor(
                         }
                     } catch (e: Exception) {
                         // Skip malformed chunks
-                        android.util.Log.w("LlmProvider", "Failed to parse chunk: $data")
+                        AppLog.w("LlmProvider", "Failed to parse chunk: $data")
                     }
                 }
             }
             
             emit(StreamingChunk.Done(buffer.toString()))
         } catch (e: Exception) {
-            android.util.Log.e("LlmProvider", "Streaming request failed: ${e.message}")
+            AppLog.e("LlmProvider", "Streaming request failed: ${e.message}")
             emit(StreamingChunk.Error(e.message ?: "Unknown error"))
         }
     }
