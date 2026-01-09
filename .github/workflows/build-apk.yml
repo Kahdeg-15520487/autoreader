@@ -1,15 +1,10 @@
-name: Build and Release APK
+name: Build APK
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      release_name:
-        description: 'Release name (optional)'
-        required: false
-        default: ''
 
 jobs:
   build:
@@ -29,40 +24,21 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Release APK
-        run: gradle assembleRelease
-
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-
-      - name: Rename APK
-        run: |
-          VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
-          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K\d+' app/build.gradle.kts)
-          mv ${{ steps.sign_app.outputs.signedReleaseFile }} app/build/outputs/apk/release/AutoReader-v${VERSION_NAME}-${VERSION_CODE}-signed.apk
+      - name: Build Debug APK
+        run: gradle assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoReader-APK
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: app/build/outputs/apk/release/AutoReader-*.apk
+          files: app/build/outputs/apk/debug/*.apk
           generate_release_notes: true
-          name: ${{ github.event.inputs.release_name || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
